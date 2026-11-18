@@ -1,0 +1,19 @@
+import { useState } from 'react';
+import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { pct, type retention, type trend } from './analytics';
+type Props = { kind: 'growth' | 'retention' | 'ai'; series: ReturnType<typeof trend>; cohorts: ReturnType<typeof retention> };
+export default function Charts({ kind, series, cohorts }: Props) {
+  const isRetention = kind === 'retention';
+  const [hidden, setHidden] = useState<string[]>([]);
+  const rows: { date: string; [key: string]: string | number | null }[] = isRetention ? [1, 7, 14, 21, 30].map((day, i) => {
+    const eligible = cohorts.reduce((sum, c) => sum + c.cells[i].eligible, 0), returned = cohorts.reduce((sum, c) => sum + c.cells[i].retained, 0);
+    return { date: `D${day}`, retention: eligible ? pct(returned, eligible) : null };
+  }) : series;
+  const keys = isRetention ? ['retention'] : kind === 'ai' ? ['accepted', 'edited'] : ['signups', 'activated'];
+  const labels: Record<string, string> = { signups: 'New teams', activated: 'Activated teams', accepted: 'Accepted drafts', edited: 'Edited drafts', retention: 'Retention %' };
+  const colors = ['var(--chart-mint)', 'var(--chart-violet)'];
+  return <>{!isRetention && <div className="legend-controls" aria-label="Chart series">{keys.map((key, i) => <button key={key} aria-pressed={!hidden.includes(key)} onClick={() => setHidden(current => current.includes(key) ? current.filter(item => item !== key) : [...current, key])}><i style={{ background: colors[i] }}/>{labels[key]}</button>)}</div>}<div className="chart" role="img" aria-label={`${kind} chart. Exact values available in the data table below.`}><ResponsiveContainer width="100%" height="100%">{isRetention ? <LineChart data={rows} margin={{ top: 20, right: 16, left: -20, bottom: 0 }}><CartesianGrid stroke="var(--chart-grid)" vertical={false}/><XAxis dataKey="date" tick={{ fill: 'var(--muted)', fontSize: 11 }} axisLine={false} tickLine={false} dy={10}/><YAxis unit="%" domain={[0, 100]} tick={{ fill: 'var(--muted)', fontSize: 11 }} axisLine={false} tickLine={false}/><Tooltip contentStyle={{ background: 'var(--tooltip)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)' }}/><Line name="Retention %" dataKey="retention" stroke={colors[0]} strokeWidth={2} dot={{ fill: colors[0], r: 3 }} isAnimationActive={false}/></LineChart> : <AreaChart data={rows} margin={{ top: 20, right: 16, left: -20, bottom: 0 }}><defs>{keys.map((key, i) => <linearGradient key={key} id={`gradient-${kind}-${key}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={colors[i]} stopOpacity={.1}/><stop offset="100%" stopColor={colors[i]} stopOpacity={0}/></linearGradient>)}</defs><CartesianGrid stroke="var(--chart-grid)" vertical={false}/><XAxis dataKey="date" minTickGap={24} tick={{ fill: 'var(--muted)', fontSize: 11 }} axisLine={false} tickLine={false} dy={10}/><YAxis allowDecimals={false} tick={{ fill: 'var(--muted)', fontSize: 11 }} axisLine={false} tickLine={false}/><Tooltip contentStyle={{ background: 'var(--tooltip)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)' }}/>{keys.map((key, i) => <Area key={key} hide={hidden.includes(key)} type="monotone" name={labels[key]} dataKey={key} stroke={colors[i]} fill={`url(#gradient-${kind}-${key})`} strokeWidth={2} isAnimationActive={false}/>)}</AreaChart>}</ResponsiveContainer></div><details className="chart-details"><summary>View chart data</summary><div className="table-scroll"><table><thead><tr><th>Date / cohort age</th>{keys.map(key => <th key={key}>{labels[key]}</th>)}</tr></thead><tbody>{rows.map(row => <tr key={row.date}><th>{row.date}</th>{keys.map(key => <td key={key}>{typeof (row as Record<string, unknown>)[key] === 'number' ? Number((row as Record<string, unknown>)[key]).toFixed(isRetention ? 1 : 0) : '—'}</td>)}</tr>)}</tbody></table></div></details></>;
+}
+
+
+
